@@ -14,10 +14,6 @@ public class Order {
 	}
 	
 	private static Map<String, LinkedHashMap<String, Integer>> menu= Item.getMenu();
-	private static Map<String, LinkedHashMap<String, Integer>> option = Item.getOption();
-	private static Map<String, Integer> orderMap = new LinkedHashMap<>();
-	private static Map<String, Integer> priceMap = new LinkedHashMap<>();
-	private static Map<String, Map<String, Integer>> toppingMap = new LinkedHashMap<>();
 	
 	//menu
 	private static void showMenu() {
@@ -48,9 +44,9 @@ public class Order {
 		int takeMenuNum = orderAmount();// 숫자 입력 받기, choiceNum() 숫자오류 제거 메소드
 					
 		if(takeMenuNum >=1 && takeMenuNum <=  mainMenuItems.size()) {
-			//choice는 입력한 번호를 1부터 시작->List mainMenuItems에서 시작하기 때문에-1 작성
+			//takeMenuNum은 입력한 번호를 1부터 시작->List mainMenuItems에서 시작하기 때문에-1 작성
 			String selectedMenu = mainMenuItems.get(takeMenuNum - 1);
-			showSubMenu(selectedMenu);
+			itemMenu(selectedMenu);
 			firstOrder = true; // 첫 주문 완료 후 true로 설정
 		}else if(takeMenuNum == mainMenuItems.size() +1) {
 			ordering =false;
@@ -61,9 +57,15 @@ public class Order {
 		}
 			
 	}
-
 	//mainMenu end
-	private static void showSubMenu(String subMenu) {
+	
+	//itemMenu(subMenu)
+	private static Map<String, LinkedHashMap<String, Integer>> option = Item.getOption();
+	private static Map<String, Integer> orderMap = new LinkedHashMap<>();
+	private static Map<String, Integer> priceMap = new LinkedHashMap<>();
+	private static Map<String, Map<String, Integer>> toppingMap = new LinkedHashMap<>();
+	
+	private static void itemMenu(String subMenu) {
 		//subMenu 에서 해당 목록을 꺼내 List 형태로 저장 
 		//LinkedHashMap을 사용->메뉴등록순서를 유지한 상태, 입력받은 번호의 문자열(subMenu)을 menu에서 가져옴
 		LinkedHashMap<String, Integer> items = menu.get(subMenu);
@@ -180,16 +182,12 @@ public class Order {
 		int total = 0;
 		System.out.println("\n주문 내역 : ");
 		for (String item : orderMap.keySet()) {
-			Map<String, Integer> toppings = toppingMap.get(item);
-			if (toppings != null && !toppings.isEmpty()) {
-			    System.out.println("   └ 토핑:");
-			    for (String toppingName : toppings.keySet()) {
-			        int toppingCount = toppings.get(toppingName);
-			        int toppingPrice = option.getOrDefault(item, new LinkedHashMap<>()).getOrDefault(toppingName, 0);
-			        System.out.printf("     - %-20s x %2d = %5d원\n", toppingName, toppingCount, toppingCount * toppingPrice);
-			    }
-			}
-
+			
+			int choiceTopping = orderMap.get(item);
+			int Price = priceMap.get(item);
+			int itemTotal = choiceTopping*Price;
+			total += itemTotal;
+			System.out.printf("- %-30s x %2d = %6d원\n", item, choiceTopping, itemTotal);
 		}
 		System.out.println("총 결제예정 금액: " + total + "원");
 	}
