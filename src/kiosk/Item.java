@@ -5,22 +5,18 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class Item {
+	//menu Map
+	static Map<String, LinkedHashMap<String, Integer>> menu = new LinkedHashMap<>();
+	//toppingOption(option)
+	static Map<String, LinkedHashMap<String, Integer>> option = new LinkedHashMap<>();
 	
-	
-	public void runningItem() {//Item 클래서에서의 호출메서드
+	static {//Item 클래서에서의 호출메서드
 		menuItems();
 		toppingOption();
 		
 	}
-	public static Map<String, LinkedHashMap<String, Integer>> getMenu() {
-        return menu;
-    }
-	public static Map<String, LinkedHashMap<String, Integer>> getOption() {
-        return option;
-    }
 	
-	//menu Map
-	private static Map<String, LinkedHashMap<String, Integer>> menu = new LinkedHashMap<>();
+	
 	//sub menu(menuItems)
 	static void menuItems() {
 	
@@ -56,11 +52,11 @@ public class Item {
 	}
 	
 	//toppingOption(option)
-	private static Map<String, LinkedHashMap<String, Integer>> option = new LinkedHashMap<>();//HashMap -> LinkedHashMap으로 변경
+	//HashMap -> LinkedHashMap으로 변경
 	static void toppingOption() {
 		//coffeOption
 		LinkedHashMap<String, Integer> coffeOption = new LinkedHashMap<>();
-		coffeOption.put("Ice", 0);
+		coffeOption.put("ice", 0);
 		coffeOption.put("hot", 0);
 		coffeOption.put("헤이즐넛", 500);
 		coffeOption.put("바닐라", 500);
@@ -72,13 +68,13 @@ public class Item {
 		
 		//latteOption
 		LinkedHashMap<String, Integer> latteOption = new LinkedHashMap<>();
-		latteOption.put("Ice", 0);
+		latteOption.put("ice", 0);
 		latteOption.put("hot", 0);
 		latteOption.put("우유", 0);
 		latteOption.put("두유", 500);
 		
 		option.put("초코라떼", latteOption);
-		option.put("녹차라뗴", latteOption);
+		option.put("녹차라떼", latteOption);
 		option.put("딸기라떼", latteOption);
 		
 		//smoothieOption
@@ -90,15 +86,22 @@ public class Item {
 		
 		//teaOption
 		LinkedHashMap<String, Integer> teaOption = new LinkedHashMap<>();
-		teaOption.put("Ice", 0);
+		teaOption.put("ice", 0);
 		teaOption.put("hot", 0);
 		
 		option.put("캐모마일", teaOption);
 		option.put("페퍼민트", teaOption);
-	}
-	//toppingOption(option) end
+		
+	}//toppingOption(option) end
 	
+	public static Map<String, LinkedHashMap<String, Integer>> getMenu() {
+        return menu;
+    }
+	public static Map<String, LinkedHashMap<String, Integer>> getOption() {
+        return option;
+    }
 	
 }
+
 
 
