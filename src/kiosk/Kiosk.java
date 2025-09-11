@@ -11,10 +11,8 @@ public class Kiosk {
 		Order order = new Order();
 		order.run();//Order
 	}
-	
-	
-
-
 
 }
+
+
 

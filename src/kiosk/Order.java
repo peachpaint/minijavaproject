@@ -2,77 +2,68 @@ package kiosk;
 
 import java.util.*;
 
-public class Order {// 주문 전체 흐름을 담당하는 클래스
+public class Order {
     private Scanner scanner = new Scanner(System.in);
-    private Menu menu = new Menu(); // 메뉴 관리 객체
-    private Cart cart = new Cart();// 장바구니 관리 객체
-    
-    
-    public Order() {
-        menu.menu(); //메뉴 데이터 초기화 (Item 클래스에서 불러오기)
-    }
-    
-    
+    private Menu menu = new Menu();
+    private Cart cart = new Cart();
+
+    // 전화번호별 고객 관리
+    private Map<String, Cust> customerDB = new HashMap<>();
+    private boolean firstOrder = true;
+
     public void run() {
-    	// 첫 주문 여부 체크
-    	boolean firstOrder = true;
-    	
-        while (true) {//// 키오스크 실행 루프
-        	// 1. 메인 메뉴 보여주기
+        menu.menu();
+
+        while (true) {
             menu.showMainMenu();
-            
-            // 2. 카테고리 선택
-            String category = menu.pickMainCategory(scanner);
-            if (category.equals("exit")) break;
-            
-            while (true) {// 카테고리 루프 시작
+            String category = menu.pickMainMenu(scanner);
 
-            	// 3. 해당 카테고리 안 메뉴 보여주기
-            	menu.showItemsInCategory(category);
-            
-            	// 4. 음료 선택
-            	Drink drink = menu.pickDrink(scanner, category);
-            	// 0 누르면 카테고리 선택으로 돌아감
-            	if (drink == null) continue;
+            if (category.equals("exit")) {
+                if (cart.isEmpty()) {
+                    System.out.println("장바구니가 비어있습니다. 먼저 주문해주세요.");
+                    continue;
+                }
+                processPayment(); // 주문완료 시 결제 진행
+                continue;
+            }
 
-            	// 5. 온도 옵션 선택 (Ice/Hot)
-            	TempPicker tempPicker = new TempPicker(drink.getTempOptions(), drink.getOptions(), scanner);
-            	tempPicker.pick();
-            	//토핑에서 뒤로가기 → 카테고리로 이동
-            	if (tempPicker.getChoice() == null) break; 
+            while (true) {
+                menu.showItemsCategory(category);
+                Drink drink = menu.pickDrink(scanner, category);
+                if (drink == null) break;
 
-            	// 6. 추가 토핑 선택
-            	ToppingPicker toppingPicker = new ToppingPicker(drink.getExtraToppings(), drink.getOptions(), scanner);
-            	toppingPicker.pick();
-            	//토핑에서 뒤로가기 → 카테고리로 이동
-            	if (toppingPicker.isBackRequested())break; 
+                // 온도 선택
+                TempPicker tempPicker = new TempPicker(drink.getTempOptions(), drink.getOptions(), scanner);
+                if (!drink.getTempOptions().isEmpty()) {
+                    tempPicker.pick();
+                    if (tempPicker.getChoice() == null) break;
+                }
 
-            	// 7. 수량 입력
-            	int quantity = askQuantity();
+                // 토핑 선택
+                ToppingPicker toppingPicker = new ToppingPicker(drink.getToppings(), drink.getOptions(), scanner);
+                if (!drink.getToppings().isEmpty()) {
+                    toppingPicker.pick();
+                    if (toppingPicker.isBackRequested()) break;
+                }
 
-            	// 8. 음료에 옵션 적용 (온도 + 토핑)
-            	drink.applyTemp(tempPicker);
-            	drink.applyToppings(toppingPicker);
+                // 수량 입력
+                int quantity = askQuantity();
 
-            	// 9. 장바구니에 추가
-            	cart.add(drink, quantity);
-            
-            	// 첫 주문 후 종료 옵션 활성화
-            	if (firstOrder) {
-            		firstOrder = false;
-            		menu.enableExitOption(); 
-            	}
-            	// 주문 완료 후 메인 메뉴로 이동
-            	break;
-            } // 카테고리 while end
-        }//키오스크 실행 while end
-        
-        // 10. 최종 장바구니 요약 출력
-        cart.showSummary();
-        
-    }//run() end
+                // 선택 적용
+                if (!drink.getTempOptions().isEmpty()) drink.applyTemp(tempPicker);
+                if (!drink.getToppings().isEmpty()) drink.applyToppings(toppingPicker);
 
-    // 수량을 입력하는  메서드
+                cart.add(drink, quantity);
+
+                if (firstOrder) {
+                    firstOrder = false;
+                    menu.enableExit();
+                }
+                break;
+            }
+        }
+    }
+
     private int askQuantity() {
         System.out.print("수량을 입력해주세요: ");
         while (true) {
@@ -84,119 +75,143 @@ public class Order {// 주문 전체 흐름을 담당하는 클래스
                 System.out.print("숫자로 입력해주세요: ");
             }
         }
-    }//askQuantity() end
-    
-}//Order end
+    }
 
+    private void processPayment() {
+        String phone;
+        Cust cust;
+        while (true) {
+            System.out.print("결제 전, 고객 전화번호를 입력해주세요 (11자리): ");
+            phone = scanner.nextLine().trim();
+            if (phone.length() == 11 && phone.matches("\\d{11}")) break;
+            System.out.println("전화번호는 11자리 숫자여야 합니다.");
+        }
 
-// 메뉴 데이터 관리 클래스
+        if (customerDB.containsKey(phone)) {
+            cust = customerDB.get(phone);
+        } else {
+            cust = new Cust(phone);
+            customerDB.put(phone, cust);
+        }
+
+        Payment selectedPayment = choosePayment();
+
+        int totalAmount = cart.getTotalAmount();
+        int earnedPoints = totalAmount / 100; // 1% 적립
+        cust.addPoints(earnedPoints);
+
+        cart.checkout(selectedPayment, earnedPoints, true);
+        cart.printReceipt();
+        System.out.println("현재 포인트: " + cust.getPoints());
+    }
+
+    private Payment choosePayment() {
+        System.out.println("\n[결제 수단 선택]");
+        for (Payment p : Payment.values()) {
+            System.out.println((p.ordinal() + 1) + ". " + p.getLabel());
+        }
+
+        while (true) {
+            System.out.print("번호 입력: ");
+            try {
+                int choice = Integer.parseInt(scanner.nextLine());
+                if (choice >= 1 && choice <= Payment.values().length) {
+                    Payment selected = Payment.values()[choice - 1];
+                    System.out.println(selected.getLabel() + " 결제를 선택하셨습니다.");
+                    return selected;
+                } else {
+                    System.out.println("잘못된 번호입니다. 다시 선택하세요.");
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("숫자로 입력해주세요.");
+            }
+        }
+    }
+}
+
+// -------------------- Menu --------------------
 class Menu {
-    // 카테고리별 메뉴이름, 가격
     private Map<String, LinkedHashMap<String, Integer>> menuData;
-    // 아이템별 옵션, 가격
-    private Map<String, LinkedHashMap<String, Integer>> optiondata;
-    
-    // 첫 번째 주문에서는 false
-    private boolean showExitOption = false;
+    private Map<String, LinkedHashMap<String, Integer>> optionData;
+    private boolean showExit = false;
 
-    // Item 클래스에서 메뉴와 옵션 데이터를 불러오기
     public void menu() {
-    	 this.menuData = Item.getMenu();
-    	 this.optiondata = Item.getOption();  	
+        this.menuData = Item.getMenu();
+        this.optionData = Item.getOption();
     }
-    
-    // 두 번째 주문부터 종료 선택 가능
-    public void enableExitOption() {
-        showExitOption = true; 
+
+    public void enableExit() {
+        showExit = true;
     }
-    
-    // 메인 카테고리 메뉴 보여주기
+
     public void showMainMenu() {
         System.out.println("\n[메인 메뉴]");
         int i = 1;
         for (String category : menuData.keySet()) {
             System.out.println(i++ + ". " + category);
         }
-        // 두 번째 주문부터 종료 선택 가능
-        if (showExitOption) {
-        	System.out.println(i + ". 주문완료");
-        }
+        if (showExit) System.out.println(i + ". 주문완료");
     }
-    
-    // 카테고리 선택 입력 받기
-    public String pickMainCategory(Scanner scanner) {
-        System.out.print("카테고리 번호를 입력하세요: ");
+
+    public String pickMainMenu(Scanner scanner) {
+        System.out.print("메뉴 번호를 입력하세요: ");
         String input = scanner.nextLine().trim();
 
         try {
             int idx = Integer.parseInt(input) - 1;
             List<String> categories = new ArrayList<>(menuData.keySet());
- 
-            // 주문완료 번호
-            if (showExitOption && idx == categories.size()) {
-                return "exit";
-            }
-            
+            if (showExit && idx == categories.size()) return "exit";
             if (idx < 0 || idx >= menuData.size()) {
                 System.out.println("잘못된 번호입니다.");
-                return pickMainCategory(scanner);
+                return pickMainMenu(scanner);
             }
             return new ArrayList<>(menuData.keySet()).get(idx);
         } catch (NumberFormatException e) {
             System.out.println("숫자로 입력해주세요.");
-            return pickMainCategory(scanner);
+            return pickMainMenu(scanner);
         }
     }
-    
-    // 카테고리 안의 메뉴 출력
-    public void showItemsInCategory(String category) {
+
+    public void showItemsCategory(String category) {
         System.out.println("\n[" + category + " 메뉴]");
         LinkedHashMap<String, Integer> items = menuData.get(category);
         int i = 1;
         for (String name : items.keySet()) {
             System.out.println(i++ + ". " + name + " (" + items.get(name) + "원)");
         }
-        //뒤로가기
         System.out.println("0. 뒤로가기");
     }
-    
-    // 음료 선택 후 Drink 객체 생성
+
     public Drink pickDrink(Scanner scanner, String category) {
         LinkedHashMap<String, Integer> items = menuData.get(category);
         List<String> itemList = new ArrayList<>(items.keySet());
-        
-        System.out.print("메뉴 번호 입력: ");
+
         System.out.print("메뉴 번호 입력 (0 입력 시 뒤로가기): ");
-        
         try {
             int idx = Integer.parseInt(scanner.nextLine()) - 1;
-            // 0 입력 시 뒤로가기
-            if (idx == -1) return null; 
+            if (idx == -1) return null;
             if (idx < 0 || idx >= itemList.size()) return null;
 
             String itemName = itemList.get(idx);
             int basePrice = items.get(itemName);
 
-            //옵션은 Item.option에서 가져오기
-            Map<String, Integer> options = optiondata.getOrDefault(itemName, new LinkedHashMap<>());
-
+            Map<String, Integer> options = optionData.getOrDefault(itemName, new LinkedHashMap<>());
             return new Drink(itemName, basePrice, options);
         } catch (NumberFormatException e) {
             System.out.println("숫자로 입력해주세요.");
             return null;
         }
     }
-    
-}//Menu end
+}
 
-//실제 주문되는 음료 클래스
+// -------------------- Drink --------------------
 class Drink {
-    private String name;// 메뉴 이름
-    private int basePrice;// 기본 가격
-    private Map<String, Integer> options; // 전체 토핑 옵션 (온도 + 토핑)
-    private Map<String, Integer> selectedToppings = new LinkedHashMap<>();// 사용자가 고른 옵션
-    private String temperature = "";// 온도 (ice/hot)
-    private int extraCost = 0;// 추가 금액
+    private String name;
+    private int basePrice;
+    private Map<String, Integer> options;
+    private Map<String, Integer> selectedToppings = new LinkedHashMap<>();
+    private String temperature = "";
+    private int extraCost = 0;
 
     public Drink(String name, int basePrice, Map<String, Integer> options) {
         this.name = name;
@@ -204,7 +219,6 @@ class Drink {
         this.options = options;
     }
 
-    // 온도 옵션만 필터링해서 리스트 반환
     public List<String> getTempOptions() {
         List<String> temps = new ArrayList<>();
         if (options.containsKey("ice")) temps.add("ice");
@@ -212,29 +226,22 @@ class Drink {
         return temps;
     }
 
-    // 토핑 옵션만 필터링해서 리스트 반환
-    public List<String> getExtraToppings() {
+    public List<String> getToppings() {
         List<String> toppings = new ArrayList<>();
         for (String key : options.keySet()) {
-            if (!key.equals("ice") && !key.equals("hot")) {
-                toppings.add(key);
-            }
+            if (!key.equals("ice") && !key.equals("hot")) toppings.add(key);
         }
         return toppings;
     }
 
-    public Map<String, Integer> getOptions() {
-        return options;
-    }
+    public Map<String, Integer> getOptions() { return options; }
 
-    // 선택된 온도 적용
     public void applyTemp(TempPicker temp) {
         temperature = temp.getChoice();
         extraCost += temp.getPrice();
         selectedToppings.put(temperature, 1);
     }
 
-    // 선택된 토핑 적용
     public void applyToppings(ToppingPicker picker) {
         Map<String, Integer> tops = picker.getPicked();
         for (String top : tops.keySet()) {
@@ -244,7 +251,6 @@ class Drink {
         }
     }
 
-    // 최종 이름
     public String getFullName() {
         if (selectedToppings.isEmpty()) return name;
         StringBuilder sb = new StringBuilder(name + " (");
@@ -256,44 +262,81 @@ class Drink {
         return sb.toString();
     }
 
-    // 최종 가격 
-    public int getTotalPrice() {
-        return basePrice + extraCost;
-    }
-}//Drink end
+    public int getTotalPrice() { return basePrice + extraCost; }
+}
+//Order end
 
-//장바구니 관리 클래스
+
 class Cart {
     private Map<String, Integer> itemCount = new LinkedHashMap<>();
     private Map<String, Integer> itemPrice = new LinkedHashMap<>();
 
-    // 장바구니에 담기
+    private Map<String, Integer> lastReceipt = new LinkedHashMap<>();
+    private Map<String, Integer> lastPrices  = new LinkedHashMap<>();
+    private int lastTotal = 0;
+    private Payment lastPayment = null;
+    private int lastEarnedPoints = 0;
+
+    // 대기번호를 static으로 선언
+    private static int orderCounter = 1;
+    
     public void add(Drink drink, int quantity) {
         String name = drink.getFullName();
         int price = drink.getTotalPrice();
-
         itemCount.put(name, itemCount.getOrDefault(name, 0) + quantity);
         itemPrice.put(name, price);
     }
 
-    // 장바구니 요약 출력
-    public void showSummary() {
-        System.out.println("\n[장바구니]");
+    public boolean isEmpty() { return itemCount.isEmpty(); }
+
+    public int getTotalAmount() {
         int total = 0;
         for (String name : itemCount.keySet()) {
-            int count = itemCount.get(name);
-            int price = itemPrice.get(name);
-            int itemTotal = count * price;
-            System.out.printf("- %s x%d = %d원\n", name, count, itemTotal);
-            total += itemTotal;
+            total += itemCount.get(name) * itemPrice.get(name);
         }
-        System.out.println("총 결제 금액: " + total + "원");
+        return total;
     }
-}//Cart end
 
-//온도 선택 클래스
+    public void checkout(Payment payment, int earnedPoints, boolean clearCart) {
+        lastReceipt.clear();
+        lastPrices.clear();
+        lastReceipt.putAll(itemCount);
+        lastPrices.putAll(itemPrice);
+        lastTotal = getTotalAmount();
+        lastPayment = payment;
+        lastEarnedPoints = earnedPoints;
+
+        if (clearCart) {
+            itemCount.clear();
+            itemPrice.clear();
+        }
+    }
+
+    public void printReceipt() {
+        if (lastReceipt.isEmpty()) {
+            System.out.println("영수증 내역이 없습니다.");
+            return;
+        }
+        System.out.println("\n[영수증]");
+        
+        
+        for (String name : lastReceipt.keySet()) {
+            int count = lastReceipt.get(name);
+            int unit = lastPrices.getOrDefault(name, 0);
+            int itemTotal = count * unit;
+            System.out.printf("- %s x%d = %d원 (단가: %d원)\n", name, count, itemTotal, unit);
+        }
+        System.out.println("-----------------------------------------------------------------");
+        System.out.println("총 결제 금액: " + lastTotal + "원");
+        System.out.println("결제 수단: " + (lastPayment != null ? lastPayment.getLabel() : "N/A"));
+        // 주문번호 출력
+        System.out.println("대기번호 : " + orderCounter);
+    }
+}
+//cart end
+
+
 class TempPicker {
-	// 선택 가능한 온도 옵션
     private final List<String> choices;
     private final Map<String, Integer> prices;
     private final Scanner scanner;
@@ -301,19 +344,16 @@ class TempPicker {
     private String choice = null;
     private int price = 0;
 
-    // 온도 옵션 이름 리스트와 가격 맵을 같이 받음
     public TempPicker(List<String> choices, Map<String, Integer> prices, Scanner scanner) {
         this.choices = choices;
         this.prices = prices;
         this.scanner = scanner;
     }
-    
-    // ice/hot 둘 다 있을 때만 선택 필요
+
     public boolean needsPick() {
         return choices.contains("ice") && choices.contains("hot") && choices.size() == 2;
     }
 
-    // 사용자에게 온도 선택 입력 받기
     public void pick() {
         if (!needsPick()) return;
 
@@ -323,67 +363,37 @@ class TempPicker {
             int cost = prices.getOrDefault(name, 0);
             System.out.println((i + 1) + ". " + name + (cost > 0 ? " (+" + cost + "원)" : ""));
         }
-        System.out.println("→ 반드시 하나를 선택하세요. 중복 선택은 불가합니다.");
-        // 뒤로가기
-        System.out.println("0. 뒤로가기"); 
+        System.out.println("0. 뒤로가기");
 
         while (true) {
             System.out.print("옵션 번호를 입력하세요: ");
             String input = scanner.nextLine().trim();
-
-            if (input.isEmpty()) {
-                System.out.println("하나의 옵션을 반드시 선택해야 합니다.");
-                continue;
-            }
-            // 0 입력 시 뒤로가기
-            if (input.equals("0")) {
-                choice = null;
-                return;
-            }
+            if (input.equals("0")) { choice = null; return; }
 
             try {
-                String[] parts = input.split(",");
-                if (parts.length > 1) {
-                    System.out.println("하나만 선택해 주세요.");
-                    continue;
-                }
-
-                int index = Integer.parseInt(parts[0].trim()) - 1;
-                if (index < 0 || index >= choices.size()) {
-                    System.out.println("번호가 잘못되었습니다.");
-                    continue;
-                }
-
+                int index = Integer.parseInt(input) - 1;
+                if (index < 0 || index >= choices.size()) { System.out.println("번호가 잘못되었습니다."); continue; }
                 choice = choices.get(index);
                 price = prices.getOrDefault(choice, 0);
                 break;
-
             } catch (NumberFormatException e) {
-                System.out.println("숫자만 입력해 주세요. 예: 1 또는 2");
+                System.out.println("숫자만 입력해주세요.");
             }
         }
-    }//pick() end
-
-    public String getChoice() {
-        return choice;
     }
 
-    public int getPrice() {
-        return price;
-    }
-}//TempPicker end
+    public String getChoice() { return choice; }
+    public int getPrice() { return price; }
+}
 
-
-//사용자에게 온도 선택 입력 받기
+// -------------------- ToppingPicker --------------------
 class ToppingPicker {
     private final List<String> toppings;
     private final Map<String, Integer> prices;
     private final Scanner scanner;
 
     private final Map<String, Integer> picked = new LinkedHashMap<>();
-    private int cost = 0;
-    // 뒤로가기 여부
-    private boolean backRequested = false; 
+    private boolean backRequested = false;
 
     public ToppingPicker(List<String> toppings, Map<String, Integer> prices, Scanner scanner) {
         this.toppings = toppings;
@@ -392,65 +402,39 @@ class ToppingPicker {
     }
 
     public void pick() {
-        if (toppings.isEmpty()) {
-            return;
-        }
+        if (toppings.isEmpty()) return;
 
         System.out.println("\n[추가 토핑 선택]");
         for (int i = 0; i < toppings.size(); i++) {
             String name = toppings.get(i);
             int price = prices.getOrDefault(name, 0);
             System.out.println((i + 1) + ". " + name + " (+" + price + "원)");
-            
         }
-
         System.out.println((toppings.size() + 1) + ". 선택 안 함");
-        // 0 = 뒤로가기 
         System.out.println("0. 뒤로가기");
-        System.out.println("→ 쉼표로 중복 선택 가능합니다. (예: 1,2,2)");
+        System.out.println("쉼표로 중복 선택 가능합니다. (예: 1,2,2)");
 
         while (true) {
             System.out.print("토핑 번호를 입력해 주세요: ");
             String input = scanner.nextLine().trim();
-            
-            // 0 입력 시 뒤로가기
-            if (input.equals("0")) {
-                picked.clear();
-                backRequested = true;
-                return;
-            }
-
-            if (input.isEmpty() || input.equals(String.valueOf(toppings.size() + 1))) {
-                System.out.println("선택 안 함을 선택했습니다.");
-                break;
-            }
+            if (input.equals("0")) { picked.clear(); backRequested = true; return; }
+            if (input.isEmpty() || input.equals(String.valueOf(toppings.size() + 1))) break;
 
             try {
                 String[] selections = input.split(",");
-
                 for (String sel : selections) {
                     int index = Integer.parseInt(sel.trim()) - 1;
-                    if (index < 0 || index >= toppings.size()) {
-                        throw new NumberFormatException();
-                    }
-
+                    if (index < 0 || index >= toppings.size()) throw new NumberFormatException();
                     String topping = toppings.get(index);
                     picked.put(topping, picked.getOrDefault(topping, 0) + 1);
-                    cost += prices.getOrDefault(topping, 0);
                 }
                 break;
-
             } catch (NumberFormatException e) {
-                System.out.println("잘못된 입력입니다. 숫자로만 다시 입력해 주세요.");
+                System.out.println("잘못된 입력입니다. 숫자로 다시 입력해주세요.");
             }
         }
     }
 
-    public Map<String, Integer> getPicked() {
-        return picked;
-    }
-    //  뒤로가기 여부 확인
-    public boolean isBackRequested() {
-        return backRequested;
-    }
+    public Map<String, Integer> getPicked() { return picked; }
+    public boolean isBackRequested() { return backRequested; }
 }//ToppingPicker end
