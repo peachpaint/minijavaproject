@@ -1,15 +1,13 @@
-package kiosk.db;
+package kioskDB;
 
+//Main->전체 키오스크 시스템 실행
 
-public class Kiosk {
+public class KioskDB {
     public static void main(String[] args) {
         kioskOn();
     }
     public static void kioskOn() {
-        Order order = new Order();
+        OrderDB order = new OrderDB();
         order.run();
     }
 }
-
-
-

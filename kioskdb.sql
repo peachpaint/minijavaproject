@@ -2,7 +2,6 @@
 CREATE DATABASE kioskdb CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 
 -- 2. 사용할 데이터베이스 선택
-DROP DATABASE IF EXISTS kioskdb;
 CREATE DATABASE kioskdb CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE kioskdb;
 
